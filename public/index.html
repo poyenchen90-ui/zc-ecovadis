@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ZC RepRadar | EcoVadis 永續評分診斷</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Sans+TC:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -263,10 +264,10 @@ html,body{
       <div class="step-num">Step 01</div>
       <div class="step-title">已有評估報告？直接上傳截圖讓 AI 分析</div>
       <div class="upload-zone" id="upload-zone">
-        <input type="file" accept="image/*" id="file-landing" onchange="handleLandingUpload(event)"/>
+        <input type="file" accept="image/*,.pdf" id="file-landing" onchange="handleLandingUpload(event)"/>
         <div class="upload-icon">📎</div>
         <div class="upload-text">點擊或拖曳上傳 EcoVadis 報告截圖</div>
-        <div class="upload-hint">支援 JPG / PNG / WEBP</div>
+        <div class="upload-hint">支援 JPG / PNG / WEBP / PDF</div>
       </div>
     </div>
 
@@ -298,7 +299,7 @@ html,body{
     </div>
     <div class="input-row">
       <label class="upload-icon-label" title="上傳圖片">
-        📎<input type="file" accept="image/*" id="file-chat" style="display:none" onchange="handleChatUpload(event)"/>
+        📎<input type="file" accept="image/*,.pdf" id="file-chat" style="display:none" onchange="handleChatUpload(event)"/>
       </label>
       <input type="text" id="text-input" placeholder="點選選項，或自由補充說明…"
         oninput="syncSendBtn()"
@@ -393,31 +394,25 @@ function startWithBand(band){
 
 function handleLandingUpload(e){
   var file=e.target.files[0]; if(!file) return;
-  var reader=new FileReader();
-  reader.onload=function(){
-    var base64=reader.result.split(",")[1];
-    var type=file.type.startsWith("image")?file.type:"image/jpeg";
-    showChat();
-    addUserMsg("（已上傳 EcoVadis 評估報告截圖，請分析現況並初步診斷）", base64, type);
+  var label = file.type==="application/pdf" ? "PDF 報告" : "截圖";
+  showChat();
+  fileToBase64(file).then(function(result){
+    addUserMsg("（已上傳 EcoVadis 評估報告"+label+"，請分析現況並初步診斷）", result.base64, result.type);
     callClaude();
-  };
-  reader.readAsDataURL(file);
+  });
   e.target.value="";
 }
 
 function handleChatUpload(e){
   var file=e.target.files[0]; if(!file) return;
-  var reader=new FileReader();
-  reader.onload=function(){
-    var base64=reader.result.split(",")[1];
-    var type=file.type.startsWith("image")?file.type:"image/jpeg";
-    pendingImg={base64:base64,type:type,name:file.name};
+  fileToBase64(file).then(function(result){
+    pendingImg={base64:result.base64,type:result.type,name:file.name};
     document.getElementById("preview-wrap").style.display="flex";
-    document.getElementById("preview-img").src=reader.result;
+    var previewSrc = "data:"+result.type+";base64,"+result.base64;
+    document.getElementById("preview-img").src=previewSrc;
     document.getElementById("preview-name").textContent=file.name;
     syncSendBtn();
-  };
-  reader.readAsDataURL(file);
+  });
   e.target.value="";
 }
 
@@ -540,6 +535,38 @@ function buildReferralCard(){
     +'<div class="ref-tip">💡 <strong>建議</strong>：聯繫顧問時請一併夾帶上方下載的診斷報告，顧問將能直接根據您的現況提供更精準的輔導建議。</div>'
     +'<a class="btn-email" href="mailto:contact@zeelandiaconsulting.com?subject=EcoVadis%20輔導諮詢（附診斷報告）&body=您好，我已完成初步診斷，報告如附件，想進一步了解 ZC 顧問服務。">✉ Email 聯繫顧問</a>';
   return div;
+}
+
+
+// PDF to image conversion
+async function pdfToBase64(file) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 2.0 });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  return dataUrl.split(',')[1];
+}
+
+async function fileToBase64(file) {
+  if (file.type === 'application/pdf') {
+    return { base64: await pdfToBase64(file), type: 'image/jpeg' };
+  }
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({
+      base64: reader.result.split(',')[1],
+      type: file.type.startsWith('image') ? file.type : 'image/jpeg'
+    });
+    reader.readAsDataURL(file);
+  });
 }
 
 async function callClaude(){
