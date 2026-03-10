@@ -584,7 +584,7 @@ async function callClaude(){
     return{role:m.role,content:m.content};
   });
   try{
-    var res=await fetch("/api/chat",{
+    var res=await fetch("https://zc-ecovadis-proxy.vercel.app/api/chat",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,system:SYSTEM_PROMPT,messages:apiMessages})
