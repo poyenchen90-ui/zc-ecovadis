@@ -130,6 +130,15 @@ html,body{
   font-family:'IBM Plex Sans TC',sans-serif;font-weight:500;
 }
 .choice-btn:hover{border-color:var(--green);background:#f0f7f0;color:var(--navy)}
+.choice-btn.selected{border-color:var(--green);background:var(--green);color:#fff}
+.choices-confirm{
+  margin-left:38px;margin-top:8px;
+  background:var(--navy);border:none;border-radius:8px;
+  padding:8px 18px;color:#fff;font-size:12px;font-weight:600;
+  cursor:pointer;font-family:'IBM Plex Sans TC',sans-serif;
+  display:none;transition:background .15s;
+}
+.choices-confirm:hover{background:#033d1c}
 
 /* TYPING */
 #typing{display:none;gap:10px;align-items:center;padding:4px 0}
@@ -479,12 +488,36 @@ function addAIMsg(parsed){
 
   if(parsed.choices&&parsed.choices.length>0&&!parsed.showReferral){
     var ch=document.createElement("div"); ch.className="choices";
+    var selected=[];
+    // Confirm button
+    var confirmBtn=document.createElement("button");
+    confirmBtn.className="choices-confirm";
+    confirmBtn.textContent="確認送出";
     parsed.choices.forEach(function(c){
       var btn=document.createElement("button"); btn.className="choice-btn";
-      btn.textContent=c; btn.onclick=function(){ sendMsg(c); };
+      btn.textContent=c;
+      btn.onclick=function(){
+        if(btn.classList.contains("selected")){
+          btn.classList.remove("selected");
+          selected=selected.filter(function(s){return s!==c;});
+        } else {
+          btn.classList.add("selected");
+          selected.push(c);
+        }
+        confirmBtn.style.display=selected.length>0?"inline-block":"none";
+      };
       ch.appendChild(btn);
     });
+    confirmBtn.onclick=function(){
+      if(selected.length===0) return;
+      var msg=selected.join("、");
+      // Disable all buttons after confirm
+      ch.querySelectorAll(".choice-btn").forEach(function(b){b.disabled=true;b.style.opacity="0.5";});
+      confirmBtn.style.display="none";
+      sendMsg(msg);
+    };
     row.appendChild(ch);
+    row.appendChild(confirmBtn);
   }
 
   if(parsed.showReferral&&parsed.reportData){
